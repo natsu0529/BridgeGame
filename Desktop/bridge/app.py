@@ -1,25 +1,37 @@
 import streamlit as st
-import google.generativeai as genai
 import os
 import random
 import json
 from dotenv import load_dotenv
 from typing import List, Dict, Any, Optional
 
+# Google Generative AI の安全なインポート
+try:
+    import google.generativeai as genai
+    GENAI_AVAILABLE = True
+except ImportError as e:
+    st.warning("Google Generative AI not available. AI features will be disabled.")
+    genai = None
+    GENAI_AVAILABLE = False
+
 # 環境変数を読み込み
 load_dotenv()
 
-# Gemini API設定
+# Gemini API設定（安全な初期化）
 api_key = os.getenv('GEMINI_API_KEY')
-if not api_key:
-    st.error("GEMINI_API_KEY not found in .env file")
-    st.stop()
+if not api_key and GENAI_AVAILABLE:
+    st.warning("GEMINI_API_KEY not found in .env file. AI features will use fallback logic.")
+    api_key = None
 
-try:
-    genai.configure(api_key=api_key)
-except Exception as e:
-    st.error(f"Failed to configure Gemini API: {e}")
-    st.stop()
+if GENAI_AVAILABLE and api_key:
+    try:
+        genai.configure(api_key=api_key)
+        AI_CONFIGURED = True
+    except Exception as e:
+        st.warning(f"Failed to configure Gemini API: {e}. AI features will use fallback logic.")
+        AI_CONFIGURED = False
+else:
+    AI_CONFIGURED = False
 
 def format_card_display(card):
     """カードを色付きで表示するためのHTML形式に変換"""
@@ -124,12 +136,14 @@ class BridgeGame:
         self.total_scores = {'NS': 0, 'EW': 0}
         self.vulnerable = {'NS': False, 'EW': False}
         
-        # Gemini APIモデルの初期化
-        try:
-            self.model = genai.GenerativeModel('gemini-pro')
-        except Exception as e:
-            print(f"Warning: Failed to initialize Gemini model: {e}")
-            self.model = None
+        # Gemini APIモデルの初期化（安全な初期化）
+        self.model = None
+        if GENAI_AVAILABLE and AI_CONFIGURED:
+            try:
+                self.model = genai.GenerativeModel('gemini-pro')
+            except Exception as e:
+                print(f"Warning: Failed to initialize Gemini model: {e}")
+                self.model = None
     
     def create_deck(self):
         """52枚のデッキを作成"""
